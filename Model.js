@@ -1,12 +1,11 @@
-
 function deg2rad(angle) { return angle * Math.PI / 180; }
 
 
 function Model(name) {
     this.name = name;
     this.iVertexBuffer    = gl.createBuffer();
-    this.iIndexBuffer     = gl.createBuffer();   // triangles
-    this.iLineIndexBuffer = gl.createBuffer();   // wireframe edges
+    this.iIndexBuffer     = gl.createBuffer();
+    this.iLineIndexBuffer = gl.createBuffer();
     this.countTri  = 0;
     this.countLine = 0;
 
@@ -24,7 +23,6 @@ function Model(name) {
         this.countLine = linesU16.length;
     };
 
-
     this.BindVertexAttrib = function (attribLocation) {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
         gl.vertexAttribPointer(attribLocation, 3, gl.FLOAT, false, 0, 0);
@@ -41,6 +39,7 @@ function Model(name) {
         gl.drawElements(gl.LINES, this.countLine, gl.UNSIGNED_SHORT, 0);
     };
 }
+
 
 function sievertPoint(u, v, C) {
     const phi    = -u / Math.sqrt(C + 1) +
@@ -60,17 +59,15 @@ function CreateSurfaceData(data) {
     const C = 1;
     const uSteps = 60;
     const vSteps = 60;
-    // safe margins to avoid the singularities of the parametrisation
     const uMin = -Math.PI / 2 + 0.001;
     const uMax =  Math.PI / 2 - 0.001;
     const vMin =  0.05;
     const vMax =  Math.PI - 0.05;
 
-    const verts = [];   // flat [x,y,z, x,y,z, ...]
-    const tris  = [];   // triangle indices
-    const lines = [];   // line indices (each edge twice in our scheme, see below)
+    const verts = [];
+    const tris  = [];
+    const lines = [];
 
-    // ---- generate vertices on a (uSteps+1)x(vSteps+1) grid ----
     for (let i = 0; i <= uSteps; i++) {
         const u = uMin + (uMax - uMin) * i / uSteps;
         for (let j = 0; j <= vSteps; j++) {
@@ -80,9 +77,7 @@ function CreateSurfaceData(data) {
         }
     }
 
-    // ---- helper: index of grid vertex (i,j) ----
     const idx = (i, j) => i * (vSteps + 1) + j;
-
 
     for (let i = 0; i < uSteps; i++) {
         for (let j = 0; j < vSteps; j++) {
@@ -90,24 +85,15 @@ function CreateSurfaceData(data) {
             const b = idx(i+1, j);
             const c = idx(i+1, j+1);
             const d = idx(i,   j+1);
-
-            // two triangles per quad
             tris.push(a, b, c);
             tris.push(a, c, d);
-
-            // two edges per quad (top and left)
             lines.push(a, b);
             lines.push(a, d);
         }
     }
-    for (let i = 0; i < uSteps; i++) {
-        lines.push(idx(i, vSteps), idx(i + 1, vSteps));
-    }
-    for (let j = 0; j < vSteps; j++) {
-        lines.push(idx(uSteps, j), idx(uSteps, j + 1));
-    }
+    for (let i = 0; i < uSteps; i++) lines.push(idx(i, vSteps), idx(i + 1, vSteps));
+    for (let j = 0; j < vSteps; j++) lines.push(idx(uSteps, j), idx(uSteps, j + 1));
 
- 
     let minX = Infinity, minY = Infinity, minZ = Infinity;
     let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
     for (let k = 0; k < verts.length; k += 3) {
@@ -132,54 +118,4 @@ function CreateSurfaceData(data) {
     data.verticesF32 = new Float32Array(verts);
     data.indicesU16  = new Uint16Array(tris);
     data.linesU16    = new Uint16Array(lines);
-}
-
-
-function Quad(name) {
-    this.name = name;
-    this.iVertexBuffer  = gl.createBuffer();
-    this.iUVBuffer      = gl.createBuffer();
-    this.iIndexBuffer   = gl.createBuffer();
-    this.count = 0;
-
-    this.BufferData = function (halfW, halfH) {
-        const verts = new Float32Array([
-            -halfW, -halfH, 0,
-             halfW, -halfH, 0,
-             halfW,  halfH, 0,
-            -halfW,  halfH, 0,
-        ]);
-  
-        const uvs = new Float32Array([
-            1, 1,   
-            0, 1,   
-            0, 0,   
-            1, 0,   
-        ]);
-        const idx = new Uint16Array([0, 1, 2,  0, 2, 3]);
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iUVBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, uvs, gl.STATIC_DRAW);
-
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
-
-        this.count = idx.length;
-    };
-
-    this.Draw = function (attribVertex, attribUV) {
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
-        gl.vertexAttribPointer(attribVertex, 3, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(attribVertex);
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iUVBuffer);
-        gl.vertexAttribPointer(attribUV, 2, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(attribUV);
-
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
-        gl.drawElements(gl.TRIANGLES, this.count, gl.UNSIGNED_SHORT, 0);
-    };
 }

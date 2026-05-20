@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-<title>PA#1 — WebGL Stereo Camera (Anaglyph)</title>
+<title>PA#2 — Tangible interface (rotation_vector)</title>
 <style>
     body {
         background-color: #1e1e1e;
@@ -23,32 +23,63 @@
         background-color: #2a2a2a;
         padding: 16px 20px;
         border-radius: 6px;
-        min-width: 280px;
+        min-width: 320px;
     }
     .ctrl { margin-bottom: 14px; }
     .ctrl label { display: block; margin-bottom: 4px; font-size: 13px; }
     .ctrl input[type=range] { width: 100%; }
+    .ctrl input[type=text] {
+        width: 100%;
+        padding: 6px 8px;
+        background: #1a1a1a;
+        color: #fff;
+        border: 1px solid #444;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+        box-sizing: border-box;
+    }
     .val { color: #79c0ff; font-weight: bold; }
     #message { color: #aaa; font-size: 13px; max-width: 600px; }
-    /* hidden <video> element used as the texture source for the webcam */
-    #webcam { display: none; }
+    #sensor-status {
+        font-family: monospace;
+        font-size: 12px;
+        padding: 6px 8px;
+        border-radius: 4px;
+        background: #1a1a1a;
+        margin-top: 6px;
+    }
+    .st-off  { color: #888; }
+    .st-on   { color: #79df79; }
+    .st-err  { color: #ff7070; }
+    button {
+        padding: 8px 14px;
+        cursor: pointer;
+        background: #3a3a3a;
+        color: #fff;
+        border: 1px solid #555;
+        border-radius: 4px;
+    }
+    button:hover { background: #4a4a4a; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 
-<!-- order matters: utils → shaders → classes → main -->
 <script src="./Utils/trackball-rotator.js"></script>
 <script src="./Utils/m4.js"></script>
 <script src="./shader.gpu"></script>
 <script src="./Model.js"></script>
 <script src="./StereoCamera.js"></script>
+<script src="./SensorClient.js"></script>
 <script src="./main.js"></script>
 </head>
 
 <body onload="init()">
-    <h2>PA#1 — WebGL Stereo Camera (Anaglyph)</h2>
+    <h2>PA#2 — Tangible interface (Variant 17, rotation_vector)</h2>
     <p id="message">
-        Put on red–cyan anaglyph glasses (red left, cyan right). The surface pops out
-        of the screen (negative parallax) and the webcam stream lies on the zero-parallax
-        plane (the plane of the screen). Drag the canvas to rotate the model.
+        Connect to your phone running <b>Sensor Server</b> (F-Droid). When the
+        checkbox below is on, the surface follows the phone's orientation
+        (mouse rotation is disabled). When off — mouse-trackball control
+        is restored.
     </p>
 
     <div id="layout">
@@ -73,19 +104,30 @@
                 <label>Convergence distance: <span id="val-conv" class="val">14.00</span></label>
                 <input type="range" id="sl-conv" min="8.0" max="40.0" step="0.1" value="14.0">
             </div>
+
             <hr style="border-color:#444">
+
             <div class="ctrl">
-                <button id="btn-cam" style="padding:8px 14px;cursor:pointer">Start webcam</button>
+                <label>Sensor Server URL:</label>
+                <input type="text" id="tx-url"
+                    value="ws://192.168.1.10:8080/sensor/connect?type=android.sensor.rotation_vector"
+                    placeholder="ws://<phone-ip>:8080/sensor/connect?type=android.sensor.rotation_vector">
             </div>
-            <div class="ctrl" style="font-size:12px;color:#888">
-                Webcam appears on the zero-parallax plane.<br>
-                Permission is requested on click.
+            <div class="ctrl" style="display:flex; gap:8px;">
+                <button id="btn-connect">Connect</button>
+                <button id="btn-disconnect" disabled>Disconnect</button>
             </div>
+            <div class="ctrl">
+                <label style="cursor:pointer">
+                    <input type="checkbox" id="cb-usephone">
+                    Use phone orientation (overrides mouse)
+                </label>
+            </div>
+            <div class="ctrl">
+                <button id="btn-recenter" disabled>Re-center (zero current pose)</button>
+            </div>
+            <div id="sensor-status" class="st-off">Disconnected</div>
         </div>
     </div>
-
-    <!-- hidden video element fed by getUserMedia, used as the WebGL texture source -->
-    <video id="webcam" autoplay playsinline muted></video>
-
 </body>
 </html>

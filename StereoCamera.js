@@ -1,10 +1,8 @@
-
-
 function StereoCamera(
-    convergence,         // distance to the zero-parallax (screen) plane
-    eyeSeparation,       // distance between the eyes
-    aspectRatio,         // canvas width / height
-    fov,                 // vertical field of view, in radians
+    convergence,
+    eyeSeparation,
+    aspectRatio,
+    fov,
     nearClippingDistance,
     farClippingDistance
 ) {
@@ -15,7 +13,6 @@ function StereoCamera(
     this.nearClippingDistance = nearClippingDistance;
     this.farClippingDistance  = farClippingDistance;
 
-   
     function frustum(left, right, bottom, top, near, far) {
         const A = (right + left) / (right - left);
         const B = (top + bottom) / (top - bottom);
@@ -32,7 +29,6 @@ function StereoCamera(
         ];
     }
 
-   
     this.calcLeftFrustum = function () {
         const top    =  this.nearClippingDistance * Math.tan(this.fov / 2);
         const bottom = -top;
@@ -48,7 +44,6 @@ function StereoCamera(
                        this.nearClippingDistance, this.farClippingDistance);
     };
 
-    
     this.calcRightFrustum = function () {
         const top    =  this.nearClippingDistance * Math.tan(this.fov / 2);
         const bottom = -top;
@@ -64,7 +59,6 @@ function StereoCamera(
                        this.nearClippingDistance, this.farClippingDistance);
     };
 
-  
     this.calcSymmetricFrustum = function () {
         const top    =  this.nearClippingDistance * Math.tan(this.fov / 2);
         const bottom = -top;
