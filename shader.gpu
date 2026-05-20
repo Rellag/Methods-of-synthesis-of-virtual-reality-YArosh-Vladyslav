@@ -1,0 +1,62 @@
+
+
+// =========================================================================
+// Model shader: solid colour, used for both the filled surface and the
+// wireframe overlay. Original from the lecture starter code.
+// =========================================================================
+const vertexShaderSource = `
+attribute vec3 vertex;
+uniform mat4 ModelViewMatrix;
+uniform mat4 ProjectionMatrix;
+
+void main() {
+    gl_Position = ProjectionMatrix * ModelViewMatrix * vec4(vertex, 1.0);
+}`;
+
+
+const fragmentShaderSource = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+   precision highp float;
+#else
+   precision mediump float;
+#endif
+
+uniform vec4 color;
+void main() {
+    gl_FragColor = color;
+}`;
+
+
+// =========================================================================
+// Texture shader: used to render the webcam stream on a quad sitting
+// exactly on the zero-parallax (convergence) plane. The quad is drawn with
+// full colour mask, so both the left and the right eye see the same
+// texels — that is precisely what zero parallax means: no horizontal
+// shift between the two eyes, the surface is perceived to be in the plane
+// of the screen.
+// =========================================================================
+const texVertexShaderSource = `
+attribute vec3 vertex;
+attribute vec2 texcoord;
+uniform mat4 ModelViewMatrix;
+uniform mat4 ProjectionMatrix;
+varying vec2 v_uv;
+
+void main() {
+    v_uv = texcoord;
+    gl_Position = ProjectionMatrix * ModelViewMatrix * vec4(vertex, 1.0);
+}`;
+
+
+const texFragmentShaderSource = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+   precision highp float;
+#else
+   precision mediump float;
+#endif
+
+uniform sampler2D u_tex;
+varying vec2 v_uv;
+void main() {
+    gl_FragColor = texture2D(u_tex, v_uv);
+}`;

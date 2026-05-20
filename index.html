@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>PA#1 — WebGL Stereo Camera (Anaglyph)</title>
+<style>
+    body {
+        background-color: #1e1e1e;
+        color: #e0e0e0;
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+    }
+    h2 { margin-top: 0; }
+    #layout { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+    #canvas-holder {
+        background-color: #000;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    #webglcanvas { display: block; background-color: #000; }
+    #controls {
+        background-color: #2a2a2a;
+        padding: 16px 20px;
+        border-radius: 6px;
+        min-width: 280px;
+    }
+    .ctrl { margin-bottom: 14px; }
+    .ctrl label { display: block; margin-bottom: 4px; font-size: 13px; }
+    .ctrl input[type=range] { width: 100%; }
+    .val { color: #79c0ff; font-weight: bold; }
+    #message { color: #aaa; font-size: 13px; max-width: 600px; }
+    /* hidden <video> element used as the texture source for the webcam */
+    #webcam { display: none; }
+</style>
+
+<!-- order matters: utils → shaders → classes → main -->
+<script src="./Utils/trackball-rotator.js"></script>
+<script src="./Utils/m4.js"></script>
+<script src="./shader.gpu"></script>
+<script src="./Model.js"></script>
+<script src="./StereoCamera.js"></script>
+<script src="./main.js"></script>
+</head>
+
+<body onload="init()">
+    <h2>PA#1 — WebGL Stereo Camera (Anaglyph)</h2>
+    <p id="message">
+        Put on red–cyan anaglyph glasses (red left, cyan right). The surface pops out
+        of the screen (negative parallax) and the webcam stream lies on the zero-parallax
+        plane (the plane of the screen). Drag the canvas to rotate the model.
+    </p>
+
+    <div id="layout">
+        <div id="canvas-holder">
+            <canvas width="600" height="600" id="webglcanvas"></canvas>
+        </div>
+
+        <div id="controls">
+            <div class="ctrl">
+                <label>Eye separation: <span id="val-eye" class="val">0.70</span></label>
+                <input type="range" id="sl-eye" min="0.0" max="2.0" step="0.01" value="0.70">
+            </div>
+            <div class="ctrl">
+                <label>Field of view (rad): <span id="val-fov" class="val">0.40</span></label>
+                <input type="range" id="sl-fov" min="0.1" max="1.5" step="0.01" value="0.40">
+            </div>
+            <div class="ctrl">
+                <label>Near clipping distance: <span id="val-near" class="val">8.00</span></label>
+                <input type="range" id="sl-near" min="1.0" max="15.0" step="0.1" value="8.0">
+            </div>
+            <div class="ctrl">
+                <label>Convergence distance: <span id="val-conv" class="val">14.00</span></label>
+                <input type="range" id="sl-conv" min="8.0" max="40.0" step="0.1" value="14.0">
+            </div>
+            <hr style="border-color:#444">
+            <div class="ctrl">
+                <button id="btn-cam" style="padding:8px 14px;cursor:pointer">Start webcam</button>
+            </div>
+            <div class="ctrl" style="font-size:12px;color:#888">
+                Webcam appears on the zero-parallax plane.<br>
+                Permission is requested on click.
+            </div>
+        </div>
+    </div>
+
+    <!-- hidden video element fed by getUserMedia, used as the WebGL texture source -->
+    <video id="webcam" autoplay playsinline muted></video>
+
+</body>
+</html>
