@@ -19,3 +19,30 @@ uniform vec4 color;
 void main() {
     gl_FragColor = color;
 }`;
+
+
+const texVertexShaderSource = `
+attribute vec3 vertex;
+attribute vec2 texcoord;
+uniform mat4 ModelViewMatrix;
+uniform mat4 ProjectionMatrix;
+varying vec2 v_uv;
+
+void main() {
+    v_uv = texcoord;
+    gl_Position = ProjectionMatrix * ModelViewMatrix * vec4(vertex, 1.0);
+}`;
+
+
+const texFragmentShaderSource = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+   precision highp float;
+#else
+   precision mediump float;
+#endif
+
+uniform sampler2D u_tex;
+varying vec2 v_uv;
+void main() {
+    gl_FragColor = texture2D(u_tex, v_uv);
+}`;

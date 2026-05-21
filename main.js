@@ -2,13 +2,19 @@
 
 let gl;
 let surface;
+let webcamQuad;
 let shProgram;
+let shTexProgram;
 
 let spaceball;
 let stereoCam;
 
 let sensor = null;
 let usePhone = false;
+
+let videoEl;
+let videoTex;
+let videoReady = false;
 
 
 function ShaderProgram(name, program) {
@@ -18,11 +24,39 @@ function ShaderProgram(name, program) {
 }
 
 const MODEL_Z = -10.0;
+const WEBCAM_HALF_W = 2.5 * (4 / 3);
+const WEBCAM_HALF_H = 2.5;
 
 
 function draw() {
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    if (videoReady) {
+        gl.bindTexture(gl.TEXTURE_2D, videoTex);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.texImage2D(
+            gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, videoEl
+        );
+
+        shTexProgram.Use();
+
+        gl.uniformMatrix4fv(
+            shTexProgram.iProjectionMatrix, false,
+            stereoCam.calcSymmetricFrustum()
+        );
+        const mvQuad = m4.translation(0, 0, -stereoCam.convergence);
+        gl.uniformMatrix4fv(shTexProgram.iModelViewMatrix, false, mvQuad);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, videoTex);
+        gl.uniform1i(shTexProgram.iSampler, 0);
+
+        gl.colorMask(true, true, true, true);
+        webcamQuad.Draw(shTexProgram.iAttribVertex, shTexProgram.iAttribUV);
+
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+    }
 
     let orientation;
     if (usePhone && sensor && sensor.connected) {
@@ -111,10 +145,21 @@ function initGL() {
     shProgram.iProjectionMatrix = gl.getUniformLocation(prog, "ProjectionMatrix");
     shProgram.iColor            = gl.getUniformLocation(prog, "color");
 
+    const texProg = createProgram(gl, texVertexShaderSource, texFragmentShaderSource);
+    shTexProgram = new ShaderProgram('Tex', texProg);
+    shTexProgram.iAttribVertex     = gl.getAttribLocation (texProg, "vertex");
+    shTexProgram.iAttribUV         = gl.getAttribLocation (texProg, "texcoord");
+    shTexProgram.iModelViewMatrix  = gl.getUniformLocation(texProg, "ModelViewMatrix");
+    shTexProgram.iProjectionMatrix = gl.getUniformLocation(texProg, "ProjectionMatrix");
+    shTexProgram.iSampler          = gl.getUniformLocation(texProg, "u_tex");
+
     const data = {};
     CreateSurfaceData(data);
     surface = new Model('Sievert');
     surface.BufferData(data.verticesF32, data.indicesU16, data.linesU16);
+
+    webcamQuad = new Quad('Webcam');
+    webcamQuad.BufferData(WEBCAM_HALF_W, WEBCAM_HALF_H);
 
     stereoCam = new StereoCamera(
         14.0,
@@ -124,6 +169,13 @@ function initGL() {
         8.0,
         40.0
     );
+
+    videoTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, videoTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
     gl.enable(gl.DEPTH_TEST);
 }
@@ -198,6 +250,24 @@ function setupGUI() {
     cbPhone.addEventListener('change', e => {
         usePhone = e.target.checked;
     });
+
+    document.getElementById('btn-cam').addEventListener('click', startWebcam);
+}
+
+
+async function startWebcam() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        videoEl.srcObject = stream;
+        await videoEl.play();
+        videoReady = true;
+        const btn = document.getElementById('btn-cam');
+        btn.textContent = 'Webcam: ON';
+        btn.disabled = true;
+    } catch (err) {
+        alert("Cannot access webcam: " + err.message +
+              "\nNote: getUserMedia requires HTTPS or http://localhost.");
+    }
 }
 
 
@@ -222,6 +292,7 @@ function init() {
 
     spaceball = new TrackballRotator(canvas, draw, 0);
     sensor    = new SensorClient();
+    videoEl   = document.getElementById('webcam');
 
     setupGUI();
     animate();

@@ -119,3 +119,52 @@ function CreateSurfaceData(data) {
     data.indicesU16  = new Uint16Array(tris);
     data.linesU16    = new Uint16Array(lines);
 }
+
+
+function Quad(name) {
+    this.name = name;
+    this.iVertexBuffer  = gl.createBuffer();
+    this.iUVBuffer      = gl.createBuffer();
+    this.iIndexBuffer   = gl.createBuffer();
+    this.count = 0;
+
+    this.BufferData = function (halfW, halfH) {
+        const verts = new Float32Array([
+            -halfW, -halfH, 0,
+             halfW, -halfH, 0,
+             halfW,  halfH, 0,
+            -halfW,  halfH, 0,
+        ]);
+        const uvs = new Float32Array([
+            1, 1,
+            0, 1,
+            0, 0,
+            1, 0,
+        ]);
+        const idx = new Uint16Array([0, 1, 2,  0, 2, 3]);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iUVBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, uvs, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+
+        this.count = idx.length;
+    };
+
+    this.Draw = function (attribVertex, attribUV) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
+        gl.vertexAttribPointer(attribVertex, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(attribVertex);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iUVBuffer);
+        gl.vertexAttribPointer(attribUV, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(attribUV);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
+        gl.drawElements(gl.TRIANGLES, this.count, gl.UNSIGNED_SHORT, 0);
+    };
+}

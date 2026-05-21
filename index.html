@@ -127,7 +127,17 @@
                 <button id="btn-recenter" disabled>Re-center (zero current pose)</button>
             </div>
             <div id="sensor-status" class="st-off">Disconnected</div>
+
+            <hr style="border-color:#444">
+
+            <div class="ctrl">
+                <button id="btn-cam">Start webcam</button>
+            </div>
+            <div class="ctrl" style="font-size:12px;color:#888">
+            </div>
         </div>
     </div>
+
+    <video id="webcam" autoplay playsinline muted style="display:none"></video>
 </body>
 </html>
