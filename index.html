@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-<title>PA#2 — Tangible interface (rotation_vector)</title>
+<title>CGW — Spatial audio (Variant 17, bandpass filter)</title>
 <style>
     body {
         background-color: #1e1e1e;
@@ -13,22 +13,19 @@
     }
     h2 { margin-top: 0; }
     #layout { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
-    #canvas-holder {
-        background-color: #000;
-        border-radius: 6px;
-        overflow: hidden;
-    }
+    #canvas-holder { background-color: #000; border-radius: 6px; overflow: hidden; }
     #webglcanvas { display: block; background-color: #000; }
     #controls {
         background-color: #2a2a2a;
         padding: 16px 20px;
         border-radius: 6px;
-        min-width: 320px;
+        min-width: 340px;
+        max-width: 360px;
     }
     .ctrl { margin-bottom: 14px; }
     .ctrl label { display: block; margin-bottom: 4px; font-size: 13px; }
     .ctrl input[type=range] { width: 100%; }
-    .ctrl input[type=text] {
+    .ctrl input[type=text], .ctrl input[type=file] {
         width: 100%;
         padding: 6px 8px;
         background: #1a1a1a;
@@ -41,7 +38,7 @@
     }
     .val { color: #79c0ff; font-weight: bold; }
     #message { color: #aaa; font-size: 13px; max-width: 600px; }
-    #sensor-status {
+    #sensor-status, #audio-status {
         font-family: monospace;
         font-size: 12px;
         padding: 6px 8px;
@@ -62,6 +59,13 @@
     }
     button:hover { background: #4a4a4a; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .section-title {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #888;
+        margin: 12px 0 8px 0;
+    }
 </style>
 
 <script src="./Utils/trackball-rotator.js"></script>
@@ -70,16 +74,17 @@
 <script src="./Model.js"></script>
 <script src="./StereoCamera.js"></script>
 <script src="./SensorClient.js"></script>
+<script src="./Audio.js"></script>
 <script src="./main.js"></script>
 </head>
 
 <body onload="init()">
-    <h2>PA#2 — Tangible interface (Variant 17, rotation_vector)</h2>
+    <h2>CGW — Spatial Audio (Variant 17, bandpass filter)</h2>
     <p id="message">
-        Connect to your phone running <b>Sensor Server</b> (F-Droid). When the
-        checkbox below is on, the surface follows the phone's orientation
-        (mouse rotation is disabled). When off — mouse-trackball control
-        is restored.
+        Built on top of PA#2. The Sievert surface stays still; the sound
+        source (orange sphere) orbits the surface's centre, driven by the
+        phone's orientation. Spatial audio is rendered via Web Audio HRTF
+        panner. Wear headphones to hear the 3D positioning.
     </p>
 
     <div id="layout">
@@ -88,27 +93,18 @@
         </div>
 
         <div id="controls">
+            <div class="section-title">Stereo camera</div>
             <div class="ctrl">
                 <label>Eye separation: <span id="val-eye" class="val">0.70</span></label>
                 <input type="range" id="sl-eye" min="0.0" max="2.0" step="0.01" value="0.70">
-            </div>
-            <div class="ctrl">
-                <label>Field of view (rad): <span id="val-fov" class="val">0.40</span></label>
-                <input type="range" id="sl-fov" min="0.1" max="1.5" step="0.01" value="0.40">
-            </div>
-            <div class="ctrl">
-                <label>Near clipping distance: <span id="val-near" class="val">8.00</span></label>
-                <input type="range" id="sl-near" min="1.0" max="15.0" step="0.1" value="8.0">
             </div>
             <div class="ctrl">
                 <label>Convergence distance: <span id="val-conv" class="val">14.00</span></label>
                 <input type="range" id="sl-conv" min="8.0" max="40.0" step="0.1" value="14.0">
             </div>
 
-            <hr style="border-color:#444">
-
+            <div class="section-title">Sensor Server</div>
             <div class="ctrl">
-                <label>Sensor Server URL:</label>
                 <input type="text" id="tx-url"
                     value="ws://192.168.1.10:8080/sensor/connect?type=android.sensor.rotation_vector"
                     placeholder="ws://<phone-ip>:8080/sensor/connect?type=android.sensor.rotation_vector">
@@ -120,13 +116,46 @@
             <div class="ctrl">
                 <label style="cursor:pointer">
                     <input type="checkbox" id="cb-usephone">
-                    Use phone orientation (overrides mouse)
+                    Use phone to orbit the sound source
+                </label>
+            </div>
+            <div id="sensor-status" class="st-off">Disconnected</div>
+
+            <div class="section-title">Audio</div>
+            <div class="ctrl">
+                <label>Audio file (mp3/ogg):</label>
+                <input type="file" id="fl-audio" accept="audio/*">
+            </div>
+            <div class="ctrl" style="display:flex; gap:8px;">
+                <button id="btn-play" disabled>▶ Play</button>
+                <button id="btn-pause" disabled>⏸ Pause</button>
+            </div>
+            <div class="ctrl">
+                <label>Orbit radius: <span id="val-rad" class="val">4.0</span></label>
+                <input type="range" id="sl-rad" min="1.0" max="10.0" step="0.1" value="4.0">
+            </div>
+            <div class="ctrl">
+                <label>Volume: <span id="val-vol" class="val">1.00</span></label>
+                <input type="range" id="sl-vol" min="0" max="2" step="0.01" value="1.0">
+            </div>
+
+            <div class="section-title">Bandpass filter (variant 17)</div>
+            <div class="ctrl">
+                <label style="cursor:pointer">
+                    <input type="checkbox" id="cb-filter" checked>
+                    Filter enabled
                 </label>
             </div>
             <div class="ctrl">
-                <button id="btn-recenter" disabled>Re-center (zero current pose)</button>
+                <label>Frequency (Hz): <span id="val-freq" class="val">1000</span></label>
+                <input type="range" id="sl-freq" min="100" max="8000" step="10" value="1000">
             </div>
-            <div id="sensor-status" class="st-off">Disconnected</div>
+            <div class="ctrl">
+                <label>Q (resonance): <span id="val-q" class="val">5.0</span></label>
+                <input type="range" id="sl-q" min="0.1" max="30" step="0.1" value="5.0">
+            </div>
+
+            <div id="audio-status" class="st-off">No audio loaded</div>
 
             <hr style="border-color:#444">
 
@@ -134,10 +163,12 @@
                 <button id="btn-cam">Start webcam</button>
             </div>
             <div class="ctrl" style="font-size:12px;color:#888">
+                Webcam appears on the zero-parallax plane (PA#1 feature).
             </div>
         </div>
     </div>
 
+    <audio id="audio-el" crossorigin="anonymous"></audio>
     <video id="webcam" autoplay playsinline muted style="display:none"></video>
 </body>
 </html>

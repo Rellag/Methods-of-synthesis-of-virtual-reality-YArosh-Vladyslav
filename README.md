@@ -1,81 +1,78 @@
-# PA#2 — Tangible interface (Variant 17)
+# CGW — Spatial Audio (Variant 17)
 
-Лабораторна #2 з курсу *Methods of synthesis of virtual reality* (КПІ).
-Орієнтація поверхні Сіверта синхронізована з фізичною орієнтацією
-смартфона. Використовується software `ROTATION_VECTOR` сенсор Android
-(варіант 17 з блогу).
+Розрахунково-графічна робота з курсу *Methods of synthesis of virtual reality* (КПІ).
+Просторовий звук через Web Audio API. Варіант 17 — **смуговий фільтр (bandpass)**.
+
+## Що реалізовано
+
+1. **Reuse PA#2 (з вебкамерою)**: анагліфний стерео-рендер, off-axis frustum,
+   поверхня Сіверта, вебкамера на zero-parallax площині, підключення до
+   Sensor Server через WebSocket.
+2. **Sound source orbits the surface**: поверхня **нерухома**, навколо неї
+   обертається маленька сфера-джерело звуку. Орбіта керується через
+   tangible interface — фізичне обертання смартфона.
+3. **Web Audio граф**: `<audio>` → `MediaElementSource` → `BiquadFilter (bandpass)`
+   → `PannerNode (HRTF)` → `GainNode` → `destination`. `PannerNode` отримує
+   3D-координати сфери щокадра, тому звук просторово рухається синхронно.
+4. **Bandpass фільтр** з повзунками frequency і Q + чекбокс enable/disable.
+5. **Власний mp3/ogg** обирається через `<input type="file">`.
 
 ## Архітектура
 
 ```
-┌──────────────┐                         ┌────────────────────┐
-│  Android     │      ws:// (WebSocket)  │  WebGL сторінка    │
-│  Sensor      │ ──────────────────────► │  у браузері ПК     │
-│  Server APK  │  JSON {values:[qx,qy,   │  (один Wi-Fi)      │
-│              │   qz,qw]}               │                    │
-└──────────────┘                         └────────────────────┘
+Phone                  Browser
+─────                  ───────
+SensorServer ──ws──► SensorClient ──► rotation matrix
+                                          │
+                                          ▼
+                              compute sphere position
+                                          │
+                          ┌───────────────┼───────────────┐
+                          ▼                               ▼
+                  WebGL renders sphere            PannerNode.setPosition
+                  at that 3D point                at that same 3D point
+                                                          │
+                                                          ▼
+                                              Spatial HRTF audio output
 ```
-
-Кожен фрейм:
-1. SensorClient читає JSON-кадр з WebSocket.
-2. `quatToMat4(qx,qy,qz,qw)` будує матрицю обертання 4×4 (порт
-   `getRotationMatrixFromVector` з Android SourceCode).
-3. Ця матриця підставляється у model-view замість матриці
-   trackball-rotator'а.
 
 ## Як запустити
 
-### Крок 1 — телефон
-
-1. Встанови **Sensor Server** з F-Droid:
-   https://f-droid.org/en/packages/github.umer0586.sensorserver/
-2. Підʼєднай телефон і ПК до **однієї Wi-Fi мережі**.
-3. Відкрий Sensor Server → натисни `Start`. Він покаже IP і порт
-   (зазвичай `8080`).
-4. У списку «Available Sensors» знайди **TYPE_ROTATION_VECTOR**.
-   Натискаючи на нього, ти побачиш URL виду:
-   ```
-   ws://192.168.1.10:8080/sensor/connect?type=android.sensor.rotation_vector
-   ```
-
-### Крок 2 — браузер
-
-1. У папці проекту запусти локальний сервер:
-   ```bash
-   python3 -m http.server 8000
-   ```
+1. Локальний сервер: `python3 -m http.server 8000`
 2. Відкрий `http://localhost:8000/`.
-3. У поле «Sensor Server URL» встав URL з телефона (заміни IP).
-4. Натисни **Connect**. Статус має змінитися на «Streaming sensor
-   data ✓».
-5. Постав галочку **Use phone orientation**.
-6. Покрути телефон у руках — поверхня крутиться синхронно.
-
-### Re-center
-
-Кнопка **Re-center** запамʼятовує поточну орієнтацію телефона як
-«нульову». Корисно якщо хочеш почати з «телефон лежить на столі = вид
-спереду».
+3. На телефоні запусти Sensor Server, у браузері встав WebSocket URL, Connect.
+4. Постав галочку **Use phone to orbit the sound source**.
+5. Натисни **Choose file** і обери mp3.
+6. **Play**, надінь навушники.
+7. Крути телефон — сфера летить навколо поверхні, звук просторово
+   переміщається відповідно до її позиції.
+8. (опційно) Натисни **Start webcam** — на zero-parallax площині з'явиться
+   твоє відео з вебкамери (як у PA#1).
 
 ## Структура файлів
 
 ```
-PA2/
-├── index.html             — canvas + GUI + поле для Sensor Server URL
-├── shader.gpu             — solid-colour GLSL шейдер
-├── StereoCamera.js        — off-axis frustum (з PA#1)
-├── Model.js               — поверхня Сіверта
-├── SensorClient.js        — WebSocket клієнт + quatToMat4
-├── main.js                — рендер-цикл, інтеграція сенсора
+CGW/
+├── index.html             — GUI: камера + sensor + audio + filter + webcam
+├── shader.gpu             — solid + textured шейдери
+├── StereoCamera.js        — off-axis frustum
+├── Model.js               — Sievert surface + UV sphere + Quad
+├── SensorClient.js        — WebSocket + quatToMat4
+├── Audio.js               — SpatialAudio: bandpass + HRTF panner
+├── main.js                — рендер-цикл, інтеграція всіх компонентів
 └── Utils/
     ├── m4.js
     └── trackball-rotator.js
 ```
 
+## Bandpass filter parameters (variant 17)
+
+- **Frequency** (центральна частота смуги): 100–8000 Hz, default 1000 Hz.
+- **Q** (резонанс / вузькість смуги): 0.1–30, default 5.
+  Більше Q → вужча смуга → звучить «вузько», як крізь трубу.
+
 ## Здача
 
-Гілка `PA2`. У відео показати:
-- роботу анагліфного рендеру (від PA#1);
-- підключення до Sensor Server, видно потік даних;
-- фізичне обертання телефона в руці → синхронне обертання поверхні
-  на екрані.
+Гілка `CGW`. У репозиторії має бути PDF-звіт згідно з вимогами:
+title page, task (1c), theory (2c), implementation (2c), user
+instruction with screenshots (2c), source code sample (2c).

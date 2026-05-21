@@ -121,6 +121,49 @@ function CreateSurfaceData(data) {
 }
 
 
+function CreateSphereData(data, radius, latBands, lonBands) {
+    radius = radius || 0.4;
+    latBands = latBands || 16;
+    lonBands = lonBands || 24;
+
+    const verts = [];
+    const tris  = [];
+    const lines = [];
+
+    for (let lat = 0; lat <= latBands; lat++) {
+        const theta = lat * Math.PI / latBands;
+        const sinT = Math.sin(theta);
+        const cosT = Math.cos(theta);
+        for (let lon = 0; lon <= lonBands; lon++) {
+            const phi = lon * 2 * Math.PI / lonBands;
+            const sinP = Math.sin(phi);
+            const cosP = Math.cos(phi);
+            verts.push(radius * cosP * sinT,
+                       radius * cosT,
+                       radius * sinP * sinT);
+        }
+    }
+
+    const idx = (lat, lon) => lat * (lonBands + 1) + lon;
+    for (let lat = 0; lat < latBands; lat++) {
+        for (let lon = 0; lon < lonBands; lon++) {
+            const a = idx(lat,     lon);
+            const b = idx(lat + 1, lon);
+            const c = idx(lat + 1, lon + 1);
+            const d = idx(lat,     lon + 1);
+            tris.push(a, b, c);
+            tris.push(a, c, d);
+            lines.push(a, b);
+            lines.push(a, d);
+        }
+    }
+
+    data.verticesF32 = new Float32Array(verts);
+    data.indicesU16  = new Uint16Array(tris);
+    data.linesU16    = new Uint16Array(lines);
+}
+
+
 function Quad(name) {
     this.name = name;
     this.iVertexBuffer  = gl.createBuffer();

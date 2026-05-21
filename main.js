@@ -2,6 +2,7 @@
 
 let gl;
 let surface;
+let sphere;
 let webcamQuad;
 let shProgram;
 let shTexProgram;
@@ -10,7 +11,10 @@ let spaceball;
 let stereoCam;
 
 let sensor = null;
+let audio = null;
 let usePhone = false;
+let orbitRadius = 4.0;
+let sourcePos = [orbitRadius, 0, 0];
 
 let videoEl;
 let videoTex;
@@ -28,9 +32,70 @@ const WEBCAM_HALF_W = 2.5 * (4 / 3);
 const WEBCAM_HALF_H = 2.5;
 
 
+function computeSourcePosition() {
+    let rotMat;
+    if (usePhone && sensor && sensor.connected) {
+        rotMat = sensor.getMatrix();
+    } else {
+        rotMat = spaceball.getViewMatrix();
+    }
+
+    const v = [orbitRadius, 0, 0, 1];
+    const x = rotMat[0]*v[0] + rotMat[4]*v[1] + rotMat[8] *v[2] + rotMat[12]*v[3];
+    const y = rotMat[1]*v[0] + rotMat[5]*v[1] + rotMat[9] *v[2] + rotMat[13]*v[3];
+    const z = rotMat[2]*v[0] + rotMat[6]*v[1] + rotMat[10]*v[2] + rotMat[14]*v[3];
+    return [x, y, z];
+}
+
+
+function drawSurface(eyeShift, frustum, redChannel, modelMat) {
+    shProgram.Use();
+    surface.BindVertexAttrib(shProgram.iAttribVertex);
+
+    gl.uniformMatrix4fv(shProgram.iProjectionMatrix, false, frustum);
+
+    const translateEye = m4.translation(eyeShift, 0, 0);
+    const translateToZ = m4.translation(0, 0, MODEL_Z);
+    const mv = m4.multiply(translateToZ, m4.multiply(translateEye, modelMat));
+    gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, mv);
+
+    if (redChannel) gl.colorMask(true, false, false, true);
+    else            gl.colorMask(false, true, true, true);
+
+    gl.uniform4fv(shProgram.iColor, [0.45, 0.45, 0.45, 1.0]);
+    surface.DrawFilled();
+    gl.uniform4fv(shProgram.iColor, [1.0, 1.0, 1.0, 1.0]);
+    surface.DrawWireframe();
+}
+
+
+function drawSphere(eyeShift, frustum, redChannel, modelMat) {
+    shProgram.Use();
+    sphere.BindVertexAttrib(shProgram.iAttribVertex);
+
+    gl.uniformMatrix4fv(shProgram.iProjectionMatrix, false, frustum);
+
+    const translateEye = m4.translation(eyeShift, 0, 0);
+    const translateToZ = m4.translation(0, 0, MODEL_Z);
+    const mv = m4.multiply(translateToZ, m4.multiply(translateEye, modelMat));
+    gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, mv);
+
+    if (redChannel) gl.colorMask(true, false, false, true);
+    else            gl.colorMask(false, true, true, true);
+
+    gl.uniform4fv(shProgram.iColor, [0.9, 0.6, 0.2, 1.0]);
+    sphere.DrawFilled();
+    gl.uniform4fv(shProgram.iColor, [1.0, 1.0, 1.0, 1.0]);
+    sphere.DrawWireframe();
+}
+
+
 function draw() {
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    sourcePos = computeSourcePosition();
+    if (audio) audio.setPosition(sourcePos[0], sourcePos[1], sourcePos[2]);
 
     if (videoReady) {
         gl.bindTexture(gl.TEXTURE_2D, videoTex);
@@ -40,7 +105,6 @@ function draw() {
         );
 
         shTexProgram.Use();
-
         gl.uniformMatrix4fv(
             shTexProgram.iProjectionMatrix, false,
             stereoCam.calcSymmetricFrustum()
@@ -58,51 +122,16 @@ function draw() {
         gl.clear(gl.DEPTH_BUFFER_BIT);
     }
 
-    let orientation;
-    if (usePhone && sensor && sensor.connected) {
-        orientation = sensor.getMatrix();
-    } else {
-        orientation = spaceball.getViewMatrix();
-    }
+    const surfaceModelMat = m4.axisRotation([0.707, 0.707, 0], 0.7);
+    const sphereModelMat  = m4.translation(sourcePos[0], sourcePos[1], sourcePos[2]);
 
-    const rotateToPointZero    = m4.axisRotation([0.707, 0.707, 0], 0.7);
-    const translateToPointZero = m4.translation(0, 0, MODEL_Z);
-
-    shProgram.Use();
-    surface.BindVertexAttrib(shProgram.iAttribVertex);
-
-    gl.uniformMatrix4fv(
-        shProgram.iProjectionMatrix, false, stereoCam.calcLeftFrustum()
-    );
-
-    const translateLeftEye = m4.translation(stereoCam.eyeSeparation / 2, 0, 0);
-    const mvLeft = m4.multiply(translateToPointZero,
-                    m4.multiply(translateLeftEye,
-                     m4.multiply(rotateToPointZero, orientation)));
-    gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, mvLeft);
-
-    gl.colorMask(true, false, false, true);
-    gl.uniform4fv(shProgram.iColor, [0.45, 0.45, 0.45, 1.0]);
-    surface.DrawFilled();
-    gl.uniform4fv(shProgram.iColor, [1.0, 1.0, 1.0, 1.0]);
-    surface.DrawWireframe();
+    drawSurface(stereoCam.eyeSeparation / 2, stereoCam.calcLeftFrustum(), true, surfaceModelMat);
+    drawSphere (stereoCam.eyeSeparation / 2, stereoCam.calcLeftFrustum(), true, sphereModelMat);
 
     gl.clear(gl.DEPTH_BUFFER_BIT);
-    gl.uniformMatrix4fv(
-        shProgram.iProjectionMatrix, false, stereoCam.calcRightFrustum()
-    );
 
-    const translateRightEye = m4.translation(-stereoCam.eyeSeparation / 2, 0, 0);
-    const mvRight = m4.multiply(translateToPointZero,
-                     m4.multiply(translateRightEye,
-                      m4.multiply(rotateToPointZero, orientation)));
-    gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, mvRight);
-
-    gl.colorMask(false, true, true, true);
-    gl.uniform4fv(shProgram.iColor, [0.45, 0.45, 0.45, 1.0]);
-    surface.DrawFilled();
-    gl.uniform4fv(shProgram.iColor, [1.0, 1.0, 1.0, 1.0]);
-    surface.DrawWireframe();
+    drawSurface(-stereoCam.eyeSeparation / 2, stereoCam.calcRightFrustum(), false, surfaceModelMat);
+    drawSphere (-stereoCam.eyeSeparation / 2, stereoCam.calcRightFrustum(), false, sphereModelMat);
 
     gl.colorMask(true, true, true, true);
 }
@@ -120,13 +149,11 @@ function createProgram(gl, vShader, fShader) {
     gl.compileShader(vsh);
     if (!gl.getShaderParameter(vsh, gl.COMPILE_STATUS))
         throw new Error("Vertex shader: " + gl.getShaderInfoLog(vsh));
-
     const fsh = gl.createShader(gl.FRAGMENT_SHADER);
     gl.shaderSource(fsh, fShader);
     gl.compileShader(fsh);
     if (!gl.getShaderParameter(fsh, gl.COMPILE_STATUS))
         throw new Error("Fragment shader: " + gl.getShaderInfoLog(fsh));
-
     const prog = gl.createProgram();
     gl.attachShader(prog, vsh);
     gl.attachShader(prog, fsh);
@@ -153,22 +180,20 @@ function initGL() {
     shTexProgram.iProjectionMatrix = gl.getUniformLocation(texProg, "ProjectionMatrix");
     shTexProgram.iSampler          = gl.getUniformLocation(texProg, "u_tex");
 
-    const data = {};
-    CreateSurfaceData(data);
+    const sData = {};
+    CreateSurfaceData(sData);
     surface = new Model('Sievert');
-    surface.BufferData(data.verticesF32, data.indicesU16, data.linesU16);
+    surface.BufferData(sData.verticesF32, sData.indicesU16, sData.linesU16);
+
+    const ballData = {};
+    CreateSphereData(ballData, 0.4, 16, 24);
+    sphere = new Model('SoundSource');
+    sphere.BufferData(ballData.verticesF32, ballData.indicesU16, ballData.linesU16);
 
     webcamQuad = new Quad('Webcam');
     webcamQuad.BufferData(WEBCAM_HALF_W, WEBCAM_HALF_H);
 
-    stereoCam = new StereoCamera(
-        14.0,
-        0.70,
-        1.0,
-        0.40,
-        8.0,
-        40.0
-    );
+    stereoCam = new StereoCamera(14.0, 0.70, 1.0, 0.40, 8.0, 40.0);
 
     videoTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, videoTex);
@@ -195,60 +220,87 @@ function bindSlider(sliderId, valueId, fmt, callback) {
 
 function setupGUI() {
     const f2 = v => v.toFixed(2);
-    bindSlider('sl-eye',  'val-eye',  f2, v => stereoCam.eyeSeparation        = v);
-    bindSlider('sl-fov',  'val-fov',  f2, v => stereoCam.fov                  = v);
-    bindSlider('sl-near', 'val-near', f2, v => stereoCam.nearClippingDistance = v);
-    bindSlider('sl-conv', 'val-conv', f2, v => stereoCam.convergence          = v);
+    const f0 = v => v.toFixed(0);
+    const f1 = v => v.toFixed(1);
 
-    const txUrl       = document.getElementById('tx-url');
-    const btnConnect  = document.getElementById('btn-connect');
-    const btnDisc     = document.getElementById('btn-disconnect');
-    const btnReCenter = document.getElementById('btn-recenter');
-    const cbPhone     = document.getElementById('cb-usephone');
-    const statusEl    = document.getElementById('sensor-status');
+    bindSlider('sl-eye',  'val-eye',  f2, v => stereoCam.eyeSeparation = v);
+    bindSlider('sl-conv', 'val-conv', f2, v => stereoCam.convergence   = v);
+    bindSlider('sl-rad',  'val-rad',  f1, v => orbitRadius             = v);
+    bindSlider('sl-vol',  'val-vol',  f2, v => { if (audio) audio.setVolume(v); });
+    bindSlider('sl-freq', 'val-freq', f0, v => { if (audio) audio.setFilterFrequency(v); });
+    bindSlider('sl-q',    'val-q',    f1, v => { if (audio) audio.setFilterQ(v); });
 
-    function setStatus(cls, text) {
-        statusEl.className = cls;
-        statusEl.textContent = text;
-    }
+    const txUrl = document.getElementById('tx-url');
+    const btnConnect = document.getElementById('btn-connect');
+    const btnDisc = document.getElementById('btn-disconnect');
+    const cbPhone = document.getElementById('cb-usephone');
+    const sStatus = document.getElementById('sensor-status');
+
+    function setSStatus(cls, text) { sStatus.className = cls; sStatus.textContent = text; }
 
     sensor.onStatus = ({status, message}) => {
         if (status === 'open' || status === 'streaming') {
-            setStatus('st-on', message);
-            btnConnect.disabled  = true;
-            btnDisc.disabled     = false;
-            btnReCenter.disabled = false;
-        } else if (status === 'connecting') {
-            setStatus('st-off', message);
+            setSStatus('st-on', message);
+            btnConnect.disabled = true;
+            btnDisc.disabled = false;
         } else if (status === 'error') {
-            setStatus('st-err', message);
-            btnConnect.disabled  = false;
-            btnDisc.disabled     = true;
-            btnReCenter.disabled = true;
+            setSStatus('st-err', message);
+            btnConnect.disabled = false;
+            btnDisc.disabled = true;
         } else {
-            setStatus('st-off', message);
-            btnConnect.disabled  = false;
-            btnDisc.disabled     = true;
-            btnReCenter.disabled = true;
+            setSStatus('st-off', message);
+            btnConnect.disabled = false;
+            btnDisc.disabled = true;
         }
     };
 
     btnConnect.addEventListener('click', () => {
         const url = txUrl.value.trim();
-        if (!url) { setStatus('st-err', 'Enter the URL first.'); return; }
+        if (!url) { setSStatus('st-err', 'Enter URL'); return; }
         sensor.connect(url);
     });
     btnDisc.addEventListener('click', () => {
         sensor.disconnect();
-        setStatus('st-off', 'Disconnected by user.');
-        btnConnect.disabled  = false;
-        btnDisc.disabled     = true;
-        btnReCenter.disabled = true;
+        setSStatus('st-off', 'Disconnected.');
     });
-    btnReCenter.addEventListener('click', () => sensor.recenter());
+    cbPhone.addEventListener('change', e => { usePhone = e.target.checked; });
 
-    cbPhone.addEventListener('change', e => {
-        usePhone = e.target.checked;
+    const flAudio = document.getElementById('fl-audio');
+    const audioEl = document.getElementById('audio-el');
+    const btnPlay = document.getElementById('btn-play');
+    const btnPause = document.getElementById('btn-pause');
+    const cbFilter = document.getElementById('cb-filter');
+    const aStatus = document.getElementById('audio-status');
+
+    function setAStatus(cls, text) { aStatus.className = cls; aStatus.textContent = text; }
+
+    flAudio.addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        audioEl.src = url;
+        audioEl.load();
+
+        if (!audio) {
+            audio = new SpatialAudio();
+            audio.onStatus = ({status, message}) => setAStatus('st-on', message);
+            audio.init(audioEl);
+            audio.setFilterEnabled(cbFilter.checked);
+        }
+
+        btnPlay.disabled = false;
+        btnPause.disabled = false;
+        setAStatus('st-on', 'Loaded: ' + file.name);
+    });
+
+    btnPlay.addEventListener('click', () => {
+        if (audio) audio.play();
+    });
+    btnPause.addEventListener('click', () => {
+        if (audio) audio.pause();
+    });
+    cbFilter.addEventListener('change', e => {
+        if (audio) audio.setFilterEnabled(e.target.checked);
     });
 
     document.getElementById('btn-cam').addEventListener('click', startWebcam);
