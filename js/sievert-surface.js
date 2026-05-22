@@ -1,8 +1,26 @@
+/**
+ * sievert-surface — A-Frame component that builds Sievert's surface,
+ * a classic surface of constant positive Gaussian curvature.
+ *
+ * Parametric equations (Kuen / Sievert family, C = 1 case):
+ *   phi = -u / sqrt(C+1) + atan(sqrt(C+1) * tan(u))
+ *   a   = 2 / (C + 1 - C * sin(v)^2 * cos(u)^2)
+ *   r   = a * sqrt((C+1)(1 + C * sin(u)^2)) * sin(v) / sqrt(C)
+ *   x   = r * cos(phi)
+ *   y   = r * sin(phi)
+ *   z   = (ln(tan(v/2)) + a*(C+1)*cos(v)) / sqrt(C)
+ *
+ * The mesh is auto-centred and rescaled to `targetSize` so it always
+ * fits neatly on top of the AR marker.
+ */
 AFRAME.registerComponent('sievert-surface', {
     schema: {
-        uSteps:   { type: 'int', default: 50 },
-        vSteps:   { type: 'int', default: 50 },
+        uSteps:     { type: 'int',    default: 80 },
+        vSteps:     { type: 'int',    default: 80 },
         targetSize: { type: 'number', default: 1.0 },
+        color:      { type: 'color',  default: '#ff9933' },
+        wireColor:  { type: 'color',  default: '#ffffff' },
+        spinSpeed:  { type: 'number', default: 0.0005 }
     },
 
     init: function () {
@@ -11,6 +29,7 @@ AFRAME.registerComponent('sievert-surface', {
         const positions = [];
         const indices   = [];
 
+        // Parameter ranges — clipped slightly to avoid singularities
         const uMin = -Math.PI / 2 + 0.001;
         const uMax =  Math.PI / 2 - 0.001;
         const vMin =  0.05;
@@ -29,6 +48,7 @@ AFRAME.registerComponent('sievert-surface', {
             ];
         }
 
+        // Build vertex grid
         for (let i = 0; i <= data.uSteps; i++) {
             const u = uMin + (uMax - uMin) * i / data.uSteps;
             for (let j = 0; j <= data.vSteps; j++) {
@@ -38,6 +58,7 @@ AFRAME.registerComponent('sievert-surface', {
             }
         }
 
+        // Stitch quads (two triangles each)
         const idx = (i, j) => i * (data.vSteps + 1) + j;
         for (let i = 0; i < data.uSteps; i++) {
             for (let j = 0; j < data.vSteps; j++) {
@@ -49,6 +70,7 @@ AFRAME.registerComponent('sievert-surface', {
             }
         }
 
+        // Centre + uniform rescale
         let minX = Infinity, minY = Infinity, minZ = Infinity;
         let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
         for (let k = 0; k < positions.length; k += 3) {
@@ -70,25 +92,28 @@ AFRAME.registerComponent('sievert-surface', {
             positions[k+2] = (positions[k+2] - cz) * scale;
         }
 
+        // Build geometry
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 
+        // Two materials layered: solid surface + wireframe overlay
         const filledMat = new THREE.MeshPhongMaterial({
-            color: 0xff9933,
+            color: new THREE.Color(data.color),
             side:  THREE.DoubleSide,
             flatShading: false,
             transparent: true,
             opacity: 0.85,
+            shininess: 60
         });
         const filledMesh = new THREE.Mesh(geometry, filledMat);
 
         const wireMat = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
+            color: new THREE.Color(data.wireColor),
             wireframe: true,
             transparent: true,
-            opacity: 0.6,
+            opacity: 0.45
         });
         const wireMesh = new THREE.Mesh(geometry, wireMat);
 
@@ -96,8 +121,12 @@ AFRAME.registerComponent('sievert-surface', {
         group.add(filledMesh);
         group.add(wireMesh);
 
-        const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-        const dir = new THREE.DirectionalLight(0xffffff, 0.7);
+        // Lay it flat onto the marker (default Sievert axis is z-up)
+        group.rotation.x = -Math.PI / 2;
+
+        // Local lights so the surface looks the same regardless of scene lighting
+        const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+        const dir = new THREE.DirectionalLight(0xffffff, 0.85);
         dir.position.set(1, 2, 1);
         group.add(ambient);
         group.add(dir);
@@ -110,7 +139,7 @@ AFRAME.registerComponent('sievert-surface', {
     tick: function (time, delta) {
         const mesh = this.el.getObject3D('mesh');
         if (mesh) {
-            this._spin += (delta || 16) * 0.0005;
+            this._spin += (delta || 16) * this.data.spinSpeed;
             mesh.rotation.z = this._spin;
         }
     },
