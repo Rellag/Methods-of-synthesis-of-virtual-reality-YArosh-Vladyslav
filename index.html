@@ -1,97 +1,127 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Control Task: AR</title>
-    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 
-    <script>
-        AFRAME.registerComponent('pa1-surface', {
-            init: function () {
-                const geometry = new THREE.BufferGeometry();
-                const vertices = [];
-                const indices = [];
+  <title>Control Task — Yarosh Vladyslav</title>
 
-                function deg2rad(a) {
-                    return a * Math.PI / 180;
-                }
+  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.3.2/aframe/build/aframe-ar.js"></script>
+  <script src="./js/sievert-surface.js"></script>
 
-                for (let i = 0; i < 72; i++) {
-                    const ang = i * 5;
-                    vertices.push(
-                        Math.sin(deg2rad(ang)),
-                        0,
-                        Math.cos(deg2rad(ang))
-                    );
-                }
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
 
-                for (let i = 0; i < 72; i++) {
-                    const ang = i * 5;
-                    vertices.push(
-                        Math.sin(deg2rad(ang)),
-                        1,
-                        Math.cos(deg2rad(ang))
-                    );
-                }
+    #hud {
+      position: fixed;
+      left: 8px;
+      top: 8px;
+      z-index: 9999;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(8, 10, 16, 0.72);
+      color: #f2f2f2;
+      font-size: 11px;
+      line-height: 1.35;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      pointer-events: none;
+    }
 
-                for (let i = 0; i < 72; i++) {
-                    const next = (i + 1) % 72;
-                    const v0 = i;
-                    const v1 = next;
-                    const v2 = 72 + i;
-                    const v3 = 72 + next;
-                    indices.push(v0, v1, v2);
-                    indices.push(v1, v3, v2);
-                }
+    #markerState {
+      font-weight: 700;
+      color: #ffd45c;
+    }
 
-                geometry.setAttribute('position',
-                    new THREE.Float32BufferAttribute(vertices, 3));
-                geometry.setIndex(indices);
-                geometry.computeVertexNormals();
+    /* Critical fix: force the camera video BEHIND the canvas, and keep the
+       canvas transparent — otherwise A-Frame paints a black background over
+       the video feed and you see nothing. */
+    video, #arjs-video {
+    object-fit: cover !important;
+    width: 100% !important;
+    height: 100% !important;
+    }
 
-                const matSolid = new THREE.MeshNormalMaterial({
-                    side: THREE.DoubleSide,
-                    wireframe: false,
-                    transparent: true,
-                    opacity: 0.7
-                });
-                const matWire = new THREE.MeshBasicMaterial({
-                    color: 0x333333,
-                    wireframe: true
-                });
-
-                const meshSolid = new THREE.Mesh(geometry, matSolid);
-                const meshWire = new THREE.Mesh(geometry, matWire);
-
-                const group = new THREE.Group();
-                group.add(meshSolid);
-                group.add(meshWire);
-
-                group.position.set(0, 0, 0);
-
-                this.el.setObject3D('mesh', group);
-            }
-        });
-    </script>
+    canvas,
+    .a-canvas {
+      z-index: 2 !important;
+      background: transparent !important;
+    }
+  </style>
 </head>
 
-<body style="margin: 0; overflow: hidden;">
-<a-scene
-        embedded
-        arjs="sourceType: webcam; debugUIEnabled: false;">
+<body>
+  <div id="hud">
+    <div><b>MSVR Control Task — AR registration template</b></div>
+    <div>Marker state: <span id="markerState">searching...</span></div>
+    <div>Model: Sievert's Surface from PA#1</div>
+  </div>
 
-    <a-marker type="pattern" url="assets/pattern-sievert.patt" smooth="true" smoothCount="5">
-        <a-entity
-                pa1-surface
-                position="0 0 0"
-                scale="0.8 0.8 0.8"
-                rotation="-90 0 0">
-        </a-entity>
+  <a-scene
+    embedded
+    vr-mode-ui="enabled: false"
+    renderer="antialias: true; alpha: true;"
+    arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono;">
+
+    <a-marker
+        id="registrationMarker"
+        type="pattern"
+        url="./assets/pattern-sievert.patt"
+        emitevents="true">
+
+      <a-entity
+        id="sievertSurfaceAR"
+        sievert-surface="uSegments: 48; vSegments: 48; scale: 0.8; wireframe: true"
+        position="0 0.08 0"
+        rotation="0 0 0">
+      </a-entity>
+
     </a-marker>
 
     <a-entity camera></a-entity>
-</a-scene>
+  </a-scene>
+
+  <script>
+    const marker = document.getElementById("registrationMarker");
+    const markerState = document.getElementById("markerState");
+
+    marker.addEventListener("markerFound", () => {
+      markerState.textContent = "found";
+      markerState.style.color = "#79ff9b";
+    });
+
+    marker.addEventListener("markerLost", () => {
+      markerState.textContent = "searching...";
+      markerState.style.color = "#ffd45c";
+    });
+  </script>
+
+  <script>
+    const scene = document.querySelector("a-scene");
+
+    scene.addEventListener("loaded", () => {
+      if (scene.renderer) {
+        scene.renderer.setClearColor(0x000000, 0);
+        scene.renderer.autoClear = true;
+      }
+
+      const canvas = document.querySelector("canvas, .a-canvas");
+      if (canvas) {
+        canvas.style.background = "transparent";
+        canvas.style.zIndex = "2";
+      }
+
+      const video = document.querySelector("#arjs-video, video");
+      if (video) {
+        video.style.zIndex = "0";
+      }
+    });
+  </script>
 </body>
 </html>
